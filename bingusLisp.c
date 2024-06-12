@@ -1,7 +1,71 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 char input [2000];
+
+//START OF STACK MECHANISM
+
+static char stack [2000];
+static int maxIndex = 0;
+
+static int addToStack(char c) {
+	maxIndex += 1;
+	stack[maxIndex] = c;
+	return maxIndex;
+}
+
+static char removeFromStack() {
+	maxIndex -= 1;
+	return stack[maxIndex];
+}
+
+int getDepth() {
+	return maxIndex;
+}
+
+enum stackResult {ERROR, BRACKET_ADDED, BRACKET_REMOVED, NO_CHANGE };
+enum mode {BRACKET, QUOTE, LIST};
+
+char getTop() {
+	return stack[maxIndex];
+}
+
+int smartAdd(char c) {
+	if ((c == '(') || c == '{') {
+		addToStack(c);
+		return BRACKET_ADDED;
+	}  else if (c == ')') {
+		if (getTop() == '(') { 
+			removeFromStack(); 
+			return BRACKET_REMOVED;
+		} else {
+			return ERROR;
+		}
+	} else if (c == '}') {
+		if (getTop() == '{') { 
+			removeFromStack(); 
+			return BRACKET_REMOVED;
+		} else {
+			return ERROR;
+		}
+	} else if (c == '"') {
+		if (getTop() == '"') { 
+			removeFromStack(); 
+			return BRACKET_REMOVED;
+		} else {
+			addToStack(c);
+			return BRACKET_ADDED;
+		}
+	} else {
+		return NO_CHANGE;
+	}
+}
+
+
+//START OF STACK MECHANISM
+
+
 typedef struct word {
 	char * text;
 	struct word * next;
@@ -14,7 +78,6 @@ word * makeWord(char input []) {
 	w-> text = buff;
 	return w;
 }
-
 
 //realized that getting rid of the first item on a zero or one element list is meaningless, hence null is returned.
 char * withoutFirst(char * buff) {
@@ -234,7 +297,6 @@ void killBadNodes(word * w, word * n) {
 }
 
 void printWord(word * w) {
-	int i = 0;
 	for (word * t = w; t != NULL; t=t->next){
 		printf("%s.", t->text);
 	}
@@ -245,25 +307,177 @@ void initializeExpression(word * w){
 	splitWord(w,' ');
 	killBadNodes(w, w->next);
 	seperateSpecialChar(w, '{'); //I think the plan is to call {} a list and () an expression. Then allow {} to be evaluated using (eval {})
-	seperateSpecialChar(w, '{'); 
-	seperateSpecialChar(w, ')'); 
+	seperateSpecialChar(w, '}'); 
+	seperateSpecialChar(w, '('); 
 	seperateSpecialChar(w, ')'); 
 	seperateSpecialChar(w, '"');  //right now strings collapse whitespace. Boo-Hoo.
 	seperateSpecialChar(w, '"'); 
-	printWord(w);
+	//printWord(w);
 }
 
-//I guess tree stuff goes down here 
+//I guess tree stuff goes down here.
+typedef struct expr  {
+	int expr_type;
+	struct expr * child;
+	struct expr * next; 
+	struct expr * parent; //why? because pain
+	char * asString;
+} expr;
+
+
+//attempt to make the tree
+
+//BRACKET, QUITE AND LIST TYPES
+
+//question. How does this thing work if you have a {} nested in () 
+static expr * activeNode;
+static expr * globalHead;
+
+void setActiveNode(expr * n) {
+	activeNode = n;	
+}
+
+expr * getActiveNode() {
+	return activeNode;
+}
+
+//sincerely horrid 
+void createNewLevel(int mode, int first) {
+	
+	expr * n = malloc(sizeof(expr));
+
+	if (first == 1) {
+		//make a node with no parent node	
+		n -> expr_type = mode; //note that top level bracket type not stored because mode is accurate
+		globalHead = n;
+	} else {
+		//make a new node with parent 
+		n -> expr_type = mode;
+		expr * active = getActiveNode();
+			
+		if (active -> child) {
+			expr * it = active -> child;
+			while (it-> next != NULL) {
+				it= it-> next;
+			}
+			it -> next = n;
+			n -> parent = active;
+		} else {
+			n -> parent = active; 
+			active -> child = n;
+		}
+	}
+	setActiveNode(n);
+}
+
+void levelComplete() {
+	//set active node to top node 
+	expr * n = getActiveNode();
+	if (n -> parent) {
+		setActiveNode(n->parent);
+	} else {
+		printf("Error, invalid parent node\n"); //gut feeling is that this is not actually a probelm
+		//exit(1);
+	}
+
+}
+
+void addToCurrentLevel(char * c) {
+	//get top node
+	expr * active = getActiveNode();
+	
+	expr * n = malloc(sizeof(expr));
+	n -> parent = active->parent;
+	n -> asString = c;
+	active -> next = n;
+	setActiveNode(n);
+
+	//make a new sibling node. Note that even in { or " modes you want to keep words seperate
+	//nothing else needed
+};
+
+void printTree(expr * n) {
+	if (n->asString) {
+		printf("%s\n",n->asString);	
+	}
+
+	if (n -> child) {
+		printTree(n->next);
+	} 
+	if (n -> next) {
+		printTree(n->next);
+	} 
+}
 
 void assembleTree(word * w) {
 	//to make this easier: assume all expressions are surrounded by () for normal {} for list and "" for string 
 	
+	int mode= BRACKET;
+	int unlockDepth = 0;
+	int first = 1;
+
+	word * a = w;
+	for (word * t = w; t != NULL; t=t->next){
+
+		printf("Word: %s.	", t->text);
+		switch (smartAdd(t->text[0])) {
+			case ERROR: 
+				printf("Error found:%c\n",t->text[0]);	
+				exit(1);
+				break;
+			case BRACKET_ADDED:
+				printf("Added:%c\n",t->text[0]);
+				
+				//potential mode change when these are added
+				if ((t-> text[0] == '{' || t-> text[0] == '"') && mode == BRACKET) {
+					mode = (t->text[0] == '{') ? LIST : QUOTE;
+					unlockDepth = getDepth();
+				}
+
+				createNewLevel(mode,first);
+				first = 0;
+				break;
+			case BRACKET_REMOVED:
+				printf("Removed partner of:%c\n", t->text[0]); 
+
+				//potential mode change when things are removed 
+				if (getDepth() == unlockDepth-1) {
+					mode = BRACKET;
+				}
+
+				levelComplete();
+				break;
+			case NO_CHANGE:
+				printf("No Change:%c\n", t->text[0]);
+				addToCurrentLevel(t->text);
+				break;
+			default:
+				printf("Error undefined behavour.\n");
+				exit(1);
+				break;
+		} 		
+		printf("Mode:%d\n",mode);
+	}
+
+	if(getDepth() != 0) {
+		printf("Incomplete use of brackets.\n");
+		exit(1);
+	} else {
+		printf("Tree completed\n");
+	}
 }
+
+//works, except I haven't tested any of the parts that might not hahahah
 
 int main() {
 	//there are two ways to solve the space probelm. Way 1: encode it away. Way 2: Rip everything appart.
-	char input [] = "{ }{a{{{}} } }";//"{ {a 'this shit should stay together' {b  c  {{{{ ";
+	char input [] = "(+ {\"{a}\"} \"{b}\") c (d)"; //"{ {a 'this shit should stay together' {b  c  {{{{ ";
 	word * w = makeWord(input);
 	initializeExpression(w);
+	printWord(w);
+	assembleTree(w);
+
+	printTree(globalHead); 
 }
 
+//this is going to hella sgfault lmao
