@@ -252,18 +252,18 @@ typedef struct expr {
 	char * vData;
 	list * sData; //
 	list * lData; //
-	struct expr * args;	
-	struct expr * nextArg;
+	struct expr * c;	
+	struct expr * n;
 } expr;
 
 void printTree(expr *tree) {
 	switch(tree -> exprType) {
 		case (EXPR):
-			if (tree -> args != NULL) {printTree(tree -> args);}	
-			if (tree -> nextArg != NULL) {printTree(tree -> nextArg);}	
+			if (tree -> c) {printTree(tree -> c);}	
 			break;
 		case (VAL):
-			printf("%s\n", tree->vData);
+			printf("Data: %s\n", tree->vData);
+			if (tree -> n) {printTree(tree -> n);}	
 			break;
 		case (STRING):
 			printList(tree->lData);	
@@ -277,61 +277,87 @@ void printTree(expr *tree) {
 	}
 }
 
-//expr * nodeFromVar () {
-//
-//}
-//
-//expr * nodeFromList () {
-//
-//}
-//
-//expr * nodeFromString () {
-//
-//}
 
-void listToTree (list * l) {
+expr * listToTree (list * l) {
 	printf("list to tree\n");
 	//find first item ignoring spaces. Determine type, ie (, {, or ". 
 	int firstRelevant = findFirstOpening(l);
 	
 	if (firstRelevant != -1) {
 		list * opening = getNth(l,firstRelevant);	
-		printf("Found:%c\n",opening->cargo[0]);
+		//printf("Found:%c\n",opening->cargo[0]);
 
 		int fbCount = getFriendBracket(opening, opening->cargo[0]);
 		list * closing = getNth(opening, fbCount); 
 		
-		printf("Found count:%d\n",fbCount);
-		printf("Found:%c\n",closing->cargo[0]);
+		//printf("Found count:%d\n",fbCount);
+		//printf("Found:%c\n",closing->cargo[0]);
 			
 		list * insides = copyListN(opening, fbCount);
-		deleteList(l);
-		printList(insides);
-		printf("\n");
+		//printList(insides);
+		//printf("\n");
 
 		//I guess i make a tree node.
+		expr * tree = malloc(sizeof(expr));
+		tree -> exprType = EXPR;
 
-		switch (insides -> cargo[0]) {
-			case '(':
-					
-				break;
-			case '{':
+		int count = 0;
+		expr * iterableTree = tree;
 
-				break;
-			case '"':
+		//go through the expressions arguements 
+		for (list * it = opening -> n; it != closing; it = it -> n) {
+			if (strcmp(" ", it ->cargo) != 0) {
+				if (it -> cargo[0] == '('){
+					int c = getFriendBracket(it, it->cargo[0]);
+					list * itClosing = getNth(it, c);
 					
-				break;
-			case ' ':	
-				break;
-			default:
-				printf("Type error\n");
-				exit(1);
+					list * subList = copyListN(it, c);	
+					expr * subTree = listToTree(subList);
+					
+					if (count == 0) { iterableTree -> c = subTree; } else {  iterableTree -> n = subTree; }
+					
+					iterableTree = subTree;
+					it = itClosing -> n; //kind of scary, could crash
+
+				} else if (it -> cargo[0] == '{'){
+				} else if (it -> cargo[0] == '"'){
+				} else  {
+					printf("Cargo%s\n",it -> cargo);
+
+					expr * temp = malloc(sizeof(expr));
+					temp -> exprType = VAL;
+					temp -> vData = malloc((strlen(it -> cargo) + 1) * sizeof(char));
+					strcpy(temp->vData, it->cargo);
+					if (count == 0) { iterableTree -> c = temp; } else {  iterableTree -> n = temp; }
+					iterableTree = temp;
+				}
+				count ++;
+			}
 		}
 
+		printTree(tree);
+		deleteList(l);
+		
+		return tree;
+
+		//switch (insides -> cargo[0]) {
+		//	case '(':
+		//			
+		//		break;
+		//	case '{':
+
+		//		break;
+		//	case '"':
+		//			
+		//		break;
+		//	case ' ':	
+		//		break;
+		//	default:
+		//		printf("Type error\n");
+		//		exit(1);
+		//}
+
 		//Then I run through the args and add them to the node nicely?
-
-
-
 	}
 	//pure void if no opening is found.
 }
