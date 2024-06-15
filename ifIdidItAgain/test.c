@@ -95,6 +95,29 @@ list * copyList (list * l ) {
 	return returnL;
 }
 
+list * copyListN(list * l, int n) {
+	int count = n;
+	list * newL = malloc(sizeof(list));
+	newL -> cargo = malloc((strlen(l->cargo) + 1) * sizeof(char));
+	strcpy(newL -> cargo, l->cargo);
+	
+	list * returnL = newL;
+	
+	if (listLength(l) > 1) {
+		list * it = l -> n;
+		while (it != NULL && count > 0) {
+			count -- ;
+			newL -> n = malloc(sizeof(list));
+			newL = newL -> n;
+			newL -> cargo = malloc((strlen(it->cargo) + 1) * sizeof(char));
+			strcpy(newL -> cargo, it->cargo);
+			it = it -> n;
+		}
+	}
+
+	return returnL;
+}
+
 char last(char * c) {
 	int i = 0;
 	while (c[i] != '\0') {i ++;}
@@ -187,21 +210,127 @@ list * getNth (list * l, int i) {
 	return it;
 }
 
+int getFriendBracket(list * l, char b) {
+	list * it = l;
+	char bType = l -> cargo[0];
+	char match;
+	int depth = 0;
+	int count = 0;
+
+	if (bType == '{') {
+		match = '}';	
+	} else if (bType == '(') {
+		match = ')';	
+	} else if (bType == '"') {
+		match = '"';	
+	}
+	
+	printf("Looking for: %c.\n", match);
+
+	while (it != NULL) {
+		printf("Current thing %s\n",it -> cargo);
+		printf("Depth:%d, Count:%d\n",depth, count);
+		if (it -> cargo[0] == bType) {
+			depth ++;
+		} else if (it -> cargo[0] == match) {
+			depth --;
+			if (depth == 0) {
+				return count; 
+			}	
+		}
+		count++;
+		it = it -> n;
+	}
+	
+	return -1;
+}
+
+enum exprType {EXPR, VAL, STRING, LIST};
+
+typedef struct expr {
+	int exprType;
+	char * vData;
+	list * sData; //
+	list * lData; //
+	struct expr * args;	
+	struct expr * nextArg;
+} expr;
+
+void printTree(expr *tree) {
+	switch(tree -> exprType) {
+		case (EXPR):
+			if (tree -> args != NULL) {printTree(tree -> args);}	
+			if (tree -> nextArg != NULL) {printTree(tree -> nextArg);}	
+			break;
+		case (VAL):
+			printf("%s\n", tree->vData);
+			break;
+		case (STRING):
+			printList(tree->lData);	
+			break;
+		case (LIST):
+			printList(tree->sData);
+			break;
+		default:
+			exit(1);
+			printf("Broken tree node");
+	}
+}
+
+//expr * nodeFromVar () {
+//
+//}
+//
+//expr * nodeFromList () {
+//
+//}
+//
+//expr * nodeFromString () {
+//
+//}
+
 void listToTree (list * l) {
+	printf("list to tree\n");
 	//find first item ignoring spaces. Determine type, ie (, {, or ". 
 	int firstRelevant = findFirstOpening(l);
 	
 	if (firstRelevant != -1) {
 		list * opening = getNth(l,firstRelevant);	
 		printf("Found:%c\n",opening->cargo[0]);
+
+		int fbCount = getFriendBracket(opening, opening->cargo[0]);
+		list * closing = getNth(opening, fbCount); 
 		
-		//Create a node.
-		
-		//go to next item. Create node. Add appropriately.
-		//repeat until you find your friend bracket. Make sure to keep track of other brackets of your type that you see, or you 
-		//will get in trouble and end things too early or too late. FINDING LAST ) OR FIRST ) ARE BOTH INCORRECT :(.
-		
-		//if you are a ( type of thing, go through the things you have added. determine what has a (), {} or "". call  listToTree on this thing. probably have to cut this list up a little bit but this is ok.
+		printf("Found count:%d\n",fbCount);
+		printf("Found:%c\n",closing->cargo[0]);
+			
+		list * insides = copyListN(opening, fbCount);
+		deleteList(l);
+		printList(insides);
+		printf("\n");
+
+		//I guess i make a tree node.
+
+		switch (insides -> cargo[0]) {
+			case '(':
+					
+				break;
+			case '{':
+
+				break;
+			case '"':
+					
+				break;
+			case ' ':	
+				break;
+			default:
+				printf("Type error\n");
+				exit(1);
+		}
+
+		//Then I run through the args and add them to the node nicely?
+
+
 
 	}
 	//pure void if no opening is found.
@@ -216,6 +345,7 @@ int main() {
 	//I guess start with a nice tree datastructure 
 	//maybe it uses the linked list thing 
 	merge(l);
+	
 	listToTree(l);
-	printListAsItems(l);
+	//printListAsItems(l);
 }
