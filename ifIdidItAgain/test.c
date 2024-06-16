@@ -364,7 +364,7 @@ expr * listToTree (list * l) {
 
 
 int main() {
-	char * doing = " 1 (Z 4 2) sd s";
+	char * doing = " 1 (Z (2 3) 2) sd s";
 	list * l = aToL(doing);
 	//this combines things. results in words seperated by space {, (, or "
 	//the next step is unfortunately the dreaded tree.
