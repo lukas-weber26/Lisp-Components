@@ -173,7 +173,7 @@ void merge(list * l) {
 	list * nl = l -> n;
 	int valid = mergable(last(l -> cargo),first(nl -> cargo));
 
-	printf("Merge on:%c.%c.%d.\n", last(l->cargo), first(nl -> cargo), valid);
+	//printf("Merge on:%c.%c.%d.\n", last(l->cargo), first(nl -> cargo), valid);
 
 	if (valid == 1) {
 		mergeListItems(l);
@@ -225,51 +225,82 @@ int getFriendBracket(list * l, char b) {
 		match = '"';	
 	}
 	
-	printf("Looking for: %c.\n", match);
-
-	while (it != NULL) {
-		printf("Current thing %s\n",it -> cargo);
-		printf("Depth:%d, Count:%d\n",depth, count);
-		if (it -> cargo[0] == bType) {
-			depth ++;
-		} else if (it -> cargo[0] == match) {
-			depth --;
-			if (depth == 0) {
-				return count; 
-			}	
-		}
+	//printf("Looking for: %c.\n", match);
+	if (bType == '"') {
+		
 		count++;
 		it = it -> n;
+		while (it != NULL) {
+			if (it -> cargo[0] == match) {
+				return count; 
+			}
+		count ++;
+		it = it -> n;
+		}
+
+	} else {
+		while (it != NULL) {
+			//printf("Current thing %s\n",it -> cargo);
+			//printf("Depth:%d, Count:%d\n",depth, count);
+			if (it -> cargo[0] == bType) {
+				depth ++;
+			} else if (it -> cargo[0] == match) {
+				depth --;
+				if (depth == 0) {
+					return count; 
+				}	
+			}
+			count++;
+			it = it -> n;
+		}
 	}
-	
+
 	return -1;
 }
 
 enum exprType {EXPR, VAL, STRING, LIST};
 
 typedef struct expr {
+	//type 
 	int exprType;
 	char * vData;
-	list * sData; //
-	list * lData; //
+	list * sData; 
+	list * lData; 
+
+	//prev, next
 	struct expr * c;	
 	struct expr * n;
+	
+	//evaluated type
+	int evaluatedType;
+	char * vDataE;
+	list * sDataE; 
+	list * lDataE;
 } expr;
 
 void printTree(expr *tree) {
 	switch(tree -> exprType) {
 		case (EXPR):
+			printf("New expr\n");
 			if (tree -> c) {printTree(tree -> c);}	
+			printf("Done expr\n");
+			if (tree -> n) {printTree(tree -> n);}	
 			break;
 		case (VAL):
-			printf("Data: %s\n", tree->vData);
+			printf("Val: %s\n", tree->vData);
 			if (tree -> n) {printTree(tree -> n);}	
 			break;
 		case (STRING):
-			printList(tree->lData);	
+			printf("String:\n");
+			printList(tree->sData);
+			printf("\n");
+			if (tree -> n) {printTree(tree -> n);}	
 			break;
 		case (LIST):
-			printList(tree->sData);
+			printf("List:\n");
+			printList(tree->lData);
+			printf("\n");
+			if (tree -> n) {printTree(tree -> n);}	
 			break;
 		default:
 			exit(1);
@@ -279,7 +310,8 @@ void printTree(expr *tree) {
 
 
 expr * listToTree (list * l) {
-	printf("list to tree\n");
+	printf("list to tree: ");
+	printList(l);
 	//find first item ignoring spaces. Determine type, ie (, {, or ". 
 	int firstRelevant = findFirstOpening(l);
 	
@@ -316,13 +348,49 @@ expr * listToTree (list * l) {
 					
 					if (count == 0) { iterableTree -> c = subTree; } else {  iterableTree -> n = subTree; }
 					
+					printf("Finished inner tree.\n");
 					iterableTree = subTree;
-					it = itClosing -> n; //kind of scary, could crash
+
+					if (itClosing -> n!= closing ) {it = itClosing->n;} else {break;}
+					//printf("Next node being looked at: %s \n", it -> n -> cargo);
 
 				} else if (it -> cargo[0] == '{'){
+					int c2 = getFriendBracket(it, it ->cargo[0]);
+					list * itClosing2 = getNth(it, c2);
+					
+					//constructing a list is probably not actually worth a recursive call.
+					expr * listSubTree = malloc(sizeof(expr));
+					listSubTree -> exprType = LIST;
+					listSubTree ->lData = copyListN(it, c2);
+					
+					if (count == 0) { iterableTree -> c = listSubTree; } else {  iterableTree -> n = listSubTree; }
+					iterableTree = listSubTree;
+
+					//printf("Closing bracket:%s\n", itClosing2 -> n -> cargo);
+					if (itClosing2 -> n != closing ) {it = itClosing2 ->n;} else {break;}
+
 				} else if (it -> cargo[0] == '"'){
+					int c3 = getFriendBracket(it, it ->cargo[0]);
+					list * itClosing3 = getNth(it, c3);
+					//printf("Distance to friend: %d.",c3);
+
+					//printf("STRING...\n");
+					printList(copyListN(it, c3));
+					//printf("\n\n\n\n");
+					
+					//constructing a list is probably not actually worth a recursive call.
+					expr * stringSubTree = malloc(sizeof(expr));
+					stringSubTree-> exprType = STRING;
+					stringSubTree->sData = copyListN(it, c3);
+					
+					if (count == 0) { iterableTree -> c = stringSubTree; } else {  iterableTree -> n = stringSubTree; }
+					iterableTree = stringSubTree;
+
+					//printf("Closing bracket:%s\n", itClosing3 -> n -> cargo);
+					if (itClosing3 -> n != closing ) {it = itClosing3 ->n;} else {break;}
+
 				} else  {
-					printf("Cargo%s\n",it -> cargo);
+					//printf("Cargo%s\n",it -> cargo);
 
 					expr * temp = malloc(sizeof(expr));
 					temp -> exprType = VAL;
@@ -335,43 +403,34 @@ expr * listToTree (list * l) {
 			}
 		}
 
-		printTree(tree);
 		deleteList(l);
 		
 		return tree;
 
-		//switch (insides -> cargo[0]) {
-		//	case '(':
-		//			
-		//		break;
-		//	case '{':
-
-		//		break;
-		//	case '"':
-		//			
-		//		break;
-		//	case ' ':	
-		//		break;
-		//	default:
-		//		printf("Type error\n");
-		//		exit(1);
-		//}
-
-		//Then I run through the args and add them to the node nicely?
 	}
 	//pure void if no opening is found.
 }
 
+//I want to start with this because I think it will guide me 
+//in terms of how I want to handle having an envonronment and how I want to do types ,
+
+expr * evaluateTree() {
+	//1. call evaluate tree on all child expressions
+	//2. evaluate current expression once results are in
+}
+
+//typedef struct envObject {
+//
+//} envObject;
+
 
 int main() {
-	char * doing = " 1 (Z (2 3) 2) sd s";
+	char * doing = "(a \" nice \")"; 
+	//slight tree screws up if () before val 
+	//completely breaks if no letter after a ))
 	list * l = aToL(doing);
-	//this combines things. results in words seperated by space {, (, or "
-	//the next step is unfortunately the dreaded tree.
-	//I guess start with a nice tree datastructure 
-	//maybe it uses the linked list thing 
 	merge(l);
 	
-	listToTree(l);
-	//printListAsItems(l);
+	expr * t = listToTree(l);
+	printTree(t);
 }
