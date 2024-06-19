@@ -305,6 +305,33 @@ void printTree(expr *tree) {
 	}
 }
 
+void deleteTree(expr *tree) {
+	switch(tree -> exprType) {
+		case (EXPR):
+			if (tree -> c) {deleteTree(tree -> c);}	
+			if (tree -> n) {deleteTree(tree -> n);}	
+			free(tree);
+			break;
+		case (VAL):
+			if (tree -> n) {deleteTree(tree -> n);}	
+			free(tree->vData);
+			free(tree);
+			break;
+		case (STRING):
+			deleteList(tree->sData);
+			if (tree -> n) {deleteTree(tree -> n);}	
+			free(tree);
+			break;
+		case (LIST):
+			deleteList(tree->lData);
+			if (tree -> n) {deleteTree(tree -> n);}	
+			free(tree);
+			break;
+		default:
+			printf("Broken tree node");
+			exit(1);
+	}
+}
 
 expr * listToTree (list * l) {
 	//printf("list to tree: ");
@@ -512,12 +539,165 @@ void evaluateTree(expr * t) {
 
 }
 
-//the big and (I think) final challenge is adding an environment.
-//the environment stores functions and variables 
-//later custom functions, right now functions that I defined.
-//ultimately, it would do me a solid if I had a good way to convert arguments to reasonable types 
-//would probably be cool if I could have an interpreter function that figures out if something is int or float
+typedef struct envNode {
+	struct envNode * n;
+	char * symbol;
 
+	//user functtion: via expected tree and resultant tree
+	expr * args; 
+	expr * output;	
+
+	//builtin functions: function via function pointers 
+	expr * (* output_fun) (expr * t);
+} envNode;
+
+expr * builtin_add(expr * t) {
+	//assume that first node in t will always be the origional symbol -> don't worry about int vs float at the moment 
+	if (t -> n -> exprType == VAL && t -> n -> n-> exprType == VAL) {
+
+		expr * result = malloc(sizeof(expr));
+		result ->exprType = VAL;
+		
+		int count = 0;
+		expr * it = t-> n;
+
+		do {
+			count += atoi(it->vData);
+			it = it -> n;
+		} while (it -> exprType == VAL);
+			
+		result-> vData = malloc(sizeof(char)*22);
+		sprintf(result -> vData,"%d",count);
+	
+		return result;
+
+	} else {
+		printf("Error, invalid addition args.\n");
+		exit(1);
+	}
+}
+
+
+expr * builtin_sub(expr * t) {
+	//assume that first node in t will always be the origional symbol -> don't worry about int vs float at the moment 
+	if (t -> n -> exprType == VAL && t -> n -> n-> exprType == VAL) {
+
+		expr * result = malloc(sizeof(expr));
+		result ->exprType = VAL;
+		
+		int count = 0;
+		expr * it = t-> n;
+		
+		count += atoi(it -> vData);
+		it = it -> n;
+
+		do {
+			count -= atoi(it->vData);
+			it = it -> n;
+		} while (it -> exprType == VAL);
+			
+		result-> vData = malloc(sizeof(char)*22);
+		sprintf(result -> vData,"%d",count);
+	
+		return result;
+
+	} else {
+		printf("Error, invalid addition args.\n");
+		exit(1);
+	}
+}
+
+void add_builtin_function (envNode * origionalNode, char s [], expr * (* output_fun) (expr * t)) {
+	envNode * n  = origionalNode;
+	
+	do {
+		n = n->n;
+	} while (n != NULL);
+
+	n = malloc(sizeof(envNode));
+	n -> symbol = malloc(sizeof(char)*(strlen(s)+1));
+	strcpy(n->symbol, s);
+	n -> output_fun = output_fun; 
+}
+
+envNode * makeEnvionment () {
+	envNode * firstNode = malloc(sizeof(envNode));
+	firstNode->symbol = malloc(sizeof(char)*2);
+	strcpy(firstNode->symbol, "+");
+	firstNode->output_fun = &builtin_add;
+	
+	//once the first node is created, the others can be added easily 
+	add_builtin_function(firstNode,"-", &builtin_sub);
+
+	return firstNode;
+}
+
+int envNodeExists(envNode * n, char * s) {
+	envNode * it = n;
+	int count = 0;
+	do {
+		if (strcmp(it ->symbol, s) == 0) { return count; }
+		count ++;
+		it = it -> n;
+	} while (it != NULL);
+
+	return -1;
+}
+
+envNode * getNode (envNode * n, int c) {
+	int count = c;
+	envNode * it = n;
+	
+	do {
+		if (count == 0) {
+			return it;
+		}
+		count --;
+		it = it -> n;
+	} while (it != NULL);
+	
+	return n;
+}
+
+void deleteNode (envNode * n, envNode * target) {
+	envNode * it = n;
+	do {
+		if (strcmp(it -> n ->symbol, target -> symbol) == 0) {
+			
+			envNode * next = it ->n -> n;
+	
+			if (it -> n ->output) {deleteTree(it -> n -> output);}	
+			if (it -> n ->args) {deleteTree(it -> n -> args);}	
+			if (it -> n ->symbol) {free(it -> n -> symbol);}	
+
+			if (next) {it -> n = next;} else {it -> n = NULL;}
+			break;
+		}
+	} while (it != NULL);
+}
+
+//this is basically a dummy. not terrible but needs some logic to figure args and out out. I guess that will come from the builtin function that handles assignments. Who knows.
+void addNode (envNode * e, char * s, expr * args, expr * out) {
+	//check if node with symbol exists 
+	int count;
+	if ((count = envNodeExists(e, s)) != -1) {
+		deleteNode(e, getNode(e,count));
+	}
+
+	envNode *it;
+	for (it = e; it -> n != NULL; it = it->n);	
+	
+	envNode * n = malloc(sizeof(envNode));
+	it -> n = n;
+
+	n ->symbol = malloc(sizeof(char) * (1 + strlen(s)));
+	strcpy(n->symbol, s);
+	n -> args = args;
+	n ->output = out;
+}
+
+//At the moment the goal should be to get the envionrment and basic functions there in to works properly.
+//Step after that is complex functions like variable assignments, etc.
 
 int main() {
 	char * doing = "(+ (/ 4 2) (+ 1 2))"; 
