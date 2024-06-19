@@ -113,9 +113,7 @@ list * copyListN(list * l, int n) {
 			strcpy(newL -> cargo, it->cargo);
 			it = it -> n;
 		}
-	} 
-
-	newL -> n = NULL; //being explicit when you want something to be null is a good ass idea. Not doing it here shrecks the list copy severely 
+	}
 
 	return returnL;
 }
@@ -307,9 +305,8 @@ void printTree(expr *tree) {
 
 
 expr * listToTree (list * l) {
-	//printf("list to tree: ");
-	//printList(l);
-	//printf("\n");
+	printf("list to tree: ");
+	printList(l);
 	//find first item ignoring spaces. Determine type, ie (, {, or ". 
 	int firstRelevant = findFirstOpening(l);
 	
@@ -334,30 +331,19 @@ expr * listToTree (list * l) {
 		int count = 0;
 		expr * iterableTree = tree;
 
-		//variables for inside of loop
-		expr * subTree;
-		list * subList;
-		list * itClosing;
-		int c;
-
 		//go through the expressions arguements 
 		for (list * it = opening -> n; it != closing; it = it -> n) {
 			if (strcmp(" ", it ->cargo) != 0) {
 				if (it -> cargo[0] == '('){
-					//printf("Found (\n");
-				
-					c = getFriendBracket(it, it->cargo[0]);
-					itClosing = getNth(it, c);
-					subList = copyListN(it, c);	
+					int c = getFriendBracket(it, it->cargo[0]);
+					list * itClosing = getNth(it, c);
 					
-
-					printList(subList);
-					//Don't think this is the probelm because printing the list allready kills it
-					subTree = listToTree(subList); 
-
-
+					list * subList = copyListN(it, c);	
+					expr * subTree = listToTree(subList);
+					
 					if (count == 0) { iterableTree -> c = subTree; } else {  iterableTree -> n = subTree; }
 					
+					printf("Finished inner tree.\n");
 					iterableTree = subTree;
 
 					if (itClosing -> n!= closing ) {it = itClosing->n;} else {break;}
@@ -383,6 +369,9 @@ expr * listToTree (list * l) {
 					list * itClosing3 = getNth(it, c3);
 					//printf("Distance to friend: %d.",c3);
 
+					//printf("STRING...\n");
+					printList(copyListN(it, c3));
+					//printf("\n\n\n\n");
 					
 					//constructing a list is probably not actually worth a recursive call.
 					expr * stringSubTree = malloc(sizeof(expr));
@@ -438,7 +427,7 @@ void evaluateTree(expr * t) {
 	
 	//for now we are evaluating only expressions
 	if (t ->exprType == EXPR) {
-	//printf("Evaluating expression\n");
+
 		//evaluate all the children 
 		if (t -> c) {
 			expr * child = t -> c;
@@ -452,57 +441,33 @@ void evaluateTree(expr * t) {
 		//This will also end up requring an environment to look up functions 
 		//I will need some sort of a gracefull way to manage different function arguments, different number of args, etc.
 		//Overall, this is kinda hard!
-		int result;	
-		char * resultString = malloc(sizeof(char)*22);
-
-		//really need something more gracefull that can handle more complex functions that are not a single char in length lol
+		int result;
+		
 		switch (t -> c -> vData[0]) {	
 			case '+':
 				result = atoi(t -> c -> n -> vData) + atoi(t -> c -> n -> n -> vData);	
+				t -> exprType = VAL;
+				char * resultString = malloc(sizeof(char)*22);
 				if (sprintf(resultString,"%d", result) > 0) {
-					t ->vData= resultString;
+					
 				} else {
 					printf("Bad addition");
 					exit(1);
 				}
-				break;
+			break;
 			case '-':
-				result = atoi(t -> c -> n -> vData) - atoi(t -> c -> n -> n -> vData);	
-				if (sprintf(resultString,"%d", result) > 0) {
-					t ->vData= resultString;
-				} else {
-					printf("Bad subtraction");
-					exit(1);
-				}
-				break;
+
 			break;
 			case '*':
-				result = atoi(t -> c -> n -> vData) * atoi(t -> c -> n -> n -> vData);	
-				if (sprintf(resultString,"%d", result) > 0) {
-					t ->vData= resultString;
-				} else {
-					printf("Bad multiplication");
-					exit(1);
-				}
-				break;
+
+			break;
 			case '/':
-				result = atoi(t -> c -> n -> vData) / atoi(t -> c -> n -> n -> vData);	
-				if (sprintf(resultString,"%d", result) > 0) {
-					t ->vData= resultString;
-				} else {
-					printf("Bad division");
-					exit(1);
-				}
-				break;
+
 			break;
 		}
-				
-
-		t -> exprType = VAL;
 
 
 		deleteChildren(t -> c);
-		t -> c = NULL;
 		
 			
 	} else {
@@ -512,15 +477,15 @@ void evaluateTree(expr * t) {
 
 }
 
-//the big and (I think) final challenge is adding an environment.
-//the environment stores functions and variables 
-//later custom functions, right now functions that I defined.
-//ultimately, it would do me a solid if I had a good way to convert arguments to reasonable types 
-//would probably be cool if I could have an interpreter function that figures out if something is int or float
+//typedef struct envObject {
+//
+//} envObject;
 
+//GOAL HERE:
+//MAKE THE LANGUAGE WORK FOR INTEGERS AND LISTS OF INTEGERS. 
 
 int main() {
-	char * doing = "(+ (/ 4 2) (+ 1 2))"; 
+	char * doing = "(a \" nice \")"; 
 	//slight tree screws up if () before val 
 	//completely breaks if no letter after a ))
 	list * l = aToL(doing);
@@ -528,6 +493,5 @@ int main() {
 	
 	expr * t = listToTree(l);
 	evaluateTree(t);
-	printf("\n");
 	printTree(t);
 }
