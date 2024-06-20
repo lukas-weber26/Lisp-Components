@@ -120,7 +120,7 @@ list * copyListN(list * l, int n) {
 	return returnL;
 }
 
-char last(char * c) {
+char last(char * c) { 
 	int i = 0;
 	while (c[i] != '\0') {i ++;}
 	return c[i-1];
@@ -369,7 +369,7 @@ expr * listToTree (list * l) {
 
 		//go through the expressions arguements 
 		for (list * it = opening -> n; it != closing; it = it -> n) {
-			if (strcmp(" ", it ->cargo) != 0) {
+			if (strcmp(" ", it ->cargo) != 0) { 
 				if (it -> cargo[0] == '('){
 					//printf("Found (\n");
 				
@@ -640,15 +640,307 @@ expr * builtin_mod(expr * t) {
 
 //which basic list/string functions do I need to get? bit of an L that these are complicated
 //get index 
-//head
-//tail 
-//set index
+expr * builtin_index(expr * t) {
+	printf("Running index \n");
+	expr * result = malloc(sizeof(expr));
+	
+	if (t-> n -> exprType == VAL && ((t->n -> n -> exprType == LIST) || (t->n -> n -> exprType == STRING))) {
+		result ->exprType = VAL;
+		int index = 2*atoi(t->n->vData) + 1;
+
+		char * r;
+		if (t -> n -> n -> exprType == LIST) { 
+			if (listLength(t -> n -> n->lData) > index ) {
+				r = getNth(t->n->n->lData, index)->cargo;
+			}
+		} else {
+			if (listLength(t -> n -> n->sData) > index ) {
+				r = getNth(t->n->n->sData, index)->cargo;
+			}
+		}
+
+		if (r) {
+			printList(t->n->n->lData);
+			printf("R being assigned and everything...\n");
+			result ->vData = malloc((strlen(r)+1)* sizeof(char));
+			printf("%s", r);
+			strcpy(result->vData, r);
+		} else {
+			printf("Also a bad result\n");
+			result ->exprType = ERROR;
+		}
+
+	} else {
+		printf("Bad result\n");
+		result ->exprType = ERROR;
+	}
+	return result;
+}
+
+expr * builtin_head(expr * t) {
+	
+	expr * result = malloc(sizeof(expr));
+	result ->exprType = ERROR;
+
+	if (t -> n ->exprType == LIST) {
+		result ->exprType = VAL; 
+		char * r = getNth(t -> n -> lData,1) -> cargo; 
+		result -> vData = malloc(sizeof(char) * (1 + strlen(r)));
+		strcpy(result->vData, r);
+	} else if (t -> n -> exprType == STRING) {
+		result ->exprType = VAL; 
+		char * r = getNth(t -> n -> sData,1) -> cargo; 
+		result -> vData = malloc(sizeof(char) * (1 + strlen(r)));
+		strcpy(result->vData, r);
+	}
+
+	return result;
+}
+
+list * listNodeCopy (list * source) {
+	list * t =malloc(sizeof(list));
+	t ->cargo = malloc(sizeof(char)*(1+sizeof(source->cargo)));
+	strcpy(t->cargo, source->cargo);
+	t->n = NULL;
+	return t;
+}
+
+list * listCopyer(list * l) {
+	list * new = listNodeCopy(l);
+	
+	list * ogIt = l;
+	list * newIt = new;
+
+	while (ogIt -> n != NULL) {
+		ogIt = ogIt -> n;
+		newIt -> n = listNodeCopy(ogIt);	
+		newIt = newIt -> n;
+	}
+
+	return new;
+		
+}
+
+expr * builtin_tail(expr * t) {
+	
+	expr * result = malloc(sizeof(expr));
+	result ->exprType = ERROR;
+
+	if (t -> n ->exprType == LIST) {
+		result ->exprType = LIST; 
+		list * l = (listCopyer(t->n->lData));
+		dropNextNode(l);
+		dropNextNode(l);
+		result ->lData = l;
+	} else if (t -> n -> exprType == STRING) {
+		result ->exprType = STRING; 
+		list * l = (listCopyer(t->n->sData));
+		dropNextNode(l);
+		dropNextNode(l);
+		result ->sData = l;
+	}
+
+	return result;
+}
+
+char * listToChar (list * l) {
+	list * it = l;
+	int count = 1+strlen(it ->cargo);
+
+	while (it -> n) {	
+		it = it -> n;
+		count += strlen(it ->cargo);
+	}
+	
+	it = l;
+
+	char * out = malloc(sizeof(char) * count);
+	char * temp = out;
+	strcpy(temp, it -> cargo);
+	temp = out+strlen(temp);
+
+	while (it -> n) {	
+		it = it -> n;
+		strcpy(temp, it -> cargo);
+		temp = out+strlen(temp);
+	}
+
+	return out;
+
+}
+
+expr * builtin_set_index(expr * t) {
+	expr * result = malloc(sizeof(expr));
+	result ->exprType = ERROR;
+
+	if (t -> n -> n -> n->exprType == LIST) {
+		result ->exprType = LIST; 
+		list * l = (listCopyer(t-> n-> n -> n->lData));
+
+		int count = 2*atoi(t->n ->vData)+1;
+		list * d = getNth(l,count-2);
+		free(d->cargo);
+
+		switch (t ->n ->n ->exprType) {
+			case VAL:
+				d -> cargo = malloc(sizeof(char) * (1 + strlen(t->n->n->vData)));
+				strcpy(d->cargo, t->n ->n -> vData);
+				break;
+			case STRING: 
+				d -> cargo = listToChar(t->n ->n -> sData);
+				break;
+			case LIST: 
+				d -> cargo = listToChar(t->n ->n -> lData);
+				break;
+			default: 
+				break;
+		}
+		
+		result ->lData = l;
+	} else if (t -> n-> n -> exprType == STRING) {
+		result ->exprType = STRING; 
+		list * l = (listCopyer(t-> n-> n -> n->sData));
+
+		int count = 2*atoi(t->n ->vData)+1;
+		list * d = getNth(l,count-2);
+		free(d->cargo);
+
+		switch (t ->n ->n ->exprType) {
+			case VAL:
+				d -> cargo = malloc(sizeof(char) * (1 + strlen(t->n->n->vData)));
+				strcpy(d->cargo, t->n ->n -> vData);
+				break;
+			case STRING: 
+				d -> cargo = listToChar(t->n ->n -> sData);
+				break;
+			case LIST: 
+				d -> cargo = listToChar(t->n ->n -> lData);
+				break;
+			default: 
+				break;
+		}
+		
+		result ->lData = l;
+	}
+
+	return result;
+
+}
+
+
 //push 
-//length
-//concatenate
-//none of these are really hard!
+expr * builtin_push(expr * t) {
+	//start by stringifying whatever is chiiling at index 1
+	char * new;
+	expr * result = malloc(sizeof(expr));
+
+	switch (t ->n ->exprType) {
+		case VAL:
+			new = malloc(sizeof(char) * (1 + strlen(t->n->vData)));
+			strcpy(new, t->n -> vData);
+			break;
+		case STRING: 
+			new = listToChar(t->n -> sData);
+			break;
+		case LIST: 
+			new = listToChar(t ->n -> lData);
+			break;
+		default: 
+			break;
+	}
+
+	list * newNode = malloc(sizeof(list));
+	newNode ->cargo = new;
+	list * newNode2 = malloc(sizeof(list));
+	newNode2 ->cargo = malloc(sizeof(char)*2);
+	strcpy(newNode2->cargo," ");
+	newNode -> n = newNode2;
+
+	if (t -> n -> n -> exprType == LIST) {
+		result -> exprType= LIST;
+		result -> lData = listCopyer(t->n->n->lData); 
+		newNode2 -> n = result -> lData -> n;
+		result -> lData -> n = newNode;
+	} else if (t -> n -> n -> exprType == STRING) {
+		result -> exprType= STRING;
+		result -> sData = listCopyer(t->n->n->sData); 
+		newNode2 -> n = result -> sData -> n;
+		result -> sData -> n = newNode;
+	}
+
+	return result;
+}
+
+expr * builtin_len(expr * t) {
+	expr * result = malloc(sizeof(expr));
+	result -> exprType = ERROR;
+	int len; 
+
+	if (t->n->exprType == LIST) {
+		result -> vData = malloc(sizeof(char)*20);		
+		sprintf(result->vData,"%d",(listLength(t->n->lData)+1)/2);
+		result -> exprType = VAL;
+	} else if (t->n->exprType == STRING) {
+		result -> vData = malloc(sizeof(char)*20);
+		sprintf(result->vData,"%d",(listLength(t->n->sData)+1)/2);
+		result -> exprType = VAL;
+	}
+	return result;
+}
+
+
+expr * builtin_concat (expr * t) { 
+	expr * result = malloc(sizeof(expr));
+	result -> exprType = ERROR;
+
+	list * current; 
+	list * temp;
+	
+	printf("Running\n");
+
+	if (t -> n -> exprType == LIST) {
+		current =listCopyer(t -> n -> lData);
+		result -> lData = current;
+		result -> exprType= LIST; 
+		
+		list * last;
+		for (last = result -> lData; last -> n != NULL; last = last -> n);
+		
+		for (expr * it = t->n->n; (it!= NULL && it -> exprType == LIST); it = it -> n) {
+			last -> n = dropFirst(listCopyer(it ->lData));
+			last ->cargo[0] = ' ';
+			for (last = result -> lData; last -> n != NULL; last = last -> n);
+		}
+		
+		
+	} else if (t -> n -> exprType == STRING) {
+
+		current = listCopyer(t -> n -> sData);
+		result -> sData = current;
+		result -> exprType= STRING; 
+		
+		list * last;
+		for (last = result -> sData; last -> n != NULL; last = last -> n);
+		
+		for (expr * it = t->n->n; (it!= NULL && it -> exprType == STRING); it = it -> n) {
+			last -> n = dropFirst(listCopyer(it ->sData));
+			last ->cargo[0] = ' ';
+			for (last = result -> sData; last -> n != NULL; last = last -> n);
+		}
+		
+	}	
+
+	return result;
+
+}
 
 //once these are completed, can look at two more functions: 
+//greater than 
+//less than 
+//equal 
+//>= 
+//oooooooooooooof
+//if (cond == 1?) (then) (else)
 //var (name) (value/list/string) --should be ok  but kinda interesting 
 //fun ({args}) (expr) --suspect this one of being hard 
 //eval (list) --should be ok but kinda interesting 
@@ -678,7 +970,13 @@ envNode * makeEnvironment () {
 	add_builtin_function(firstNode,"*", &builtin_mult);
 	add_builtin_function(firstNode,"/", &builtin_div);
 	add_builtin_function(firstNode,"%", &builtin_mod);
-
+	add_builtin_function(firstNode,"ind", &builtin_index);
+	add_builtin_function(firstNode,"head", &builtin_head);
+	add_builtin_function(firstNode,"tail", &builtin_tail);
+	add_builtin_function(firstNode,"sind", &builtin_set_index);
+	add_builtin_function(firstNode,"len", &builtin_len);
+	add_builtin_function(firstNode,"push", &builtin_push);
+	add_builtin_function(firstNode,"cat", &builtin_concat);
 	return firstNode;
 }
 
@@ -754,9 +1052,6 @@ void printEnvironment(envNode * e) {
 	}
 }
 
-//At the moment the goal should be to get the envionrment and basic functions there in to works properly.
-//Step after that is complex functions like variable assignments, etc.
-//THIS IS THE LAST THING I CODE TODAY!
 void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 	
 	//for now we are evaluating only expressions, extension to variables lists, etc. should be trivial
@@ -820,7 +1115,8 @@ void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 
 int main() {
 	envNode * environment = makeEnvironment();
-	char * doing = "(% 7 2)"; 
+	//realistically need to clean up the list type to at least prevent { a from breaking things 
+	char * doing = "(len (tail (cat {a b c} {1 2 3})))"; 
 	//slight tree screws up if () before val 
 	//completely breaks if no letter after a ))
 	list * l = aToL(doing);
