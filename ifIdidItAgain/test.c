@@ -260,7 +260,7 @@ int getFriendBracket(list * l, char b) {
 	return -1;
 }
 
-enum exprType {EXPR, VAL, STRING, LIST};
+enum exprType {EXPR, VAL, STRING, LIST, ERROR};
 
 typedef struct expr {
 	//type 
@@ -441,7 +441,9 @@ expr * listToTree (list * l) {
 		return tree;
 
 	}
-	//pure void if no opening is found.
+	
+	return NULL; //caution, this line is suspect!
+
 }
 
 //I want to start with this because I think it will guide me 
@@ -548,86 +550,134 @@ typedef struct envNode {
 	expr * output;	
 
 	//builtin functions: function via function pointers 
-	expr * (* output_fun) (expr * t);
+	expr* (* output_fun) (expr*);
 } envNode;
 
 expr * builtin_add(expr * t) {
-	//assume that first node in t will always be the origional symbol -> don't worry about int vs float at the moment 
-	if (t -> n -> exprType == VAL && t -> n -> n-> exprType == VAL) {
-
-		expr * result = malloc(sizeof(expr));
-		result ->exprType = VAL;
-		
-		int count = 0;
-		expr * it = t-> n;
-
-		do {
-			count += atoi(it->vData);
-			it = it -> n;
-		} while (it -> exprType == VAL);
-			
-		result-> vData = malloc(sizeof(char)*22);
-		sprintf(result -> vData,"%d",count);
-	
-		return result;
-
-	} else {
-		printf("Error, invalid addition args.\n");
-		exit(1);
+	expr * result = malloc(sizeof(expr));
+	result ->exprType = VAL;
+	int count = 0;
+	expr * it = t->n;
+	while (it != NULL) {
+		count += atoi(it->vData);
+		it = it -> n;
 	}
+	result ->vData = malloc(sizeof(char)*20);
+	sprintf(result->vData, "%d", count);	
+	printf("Returning:%s.\n", result->vData);
+	return result;
 }
 
 
 expr * builtin_sub(expr * t) {
-	//assume that first node in t will always be the origional symbol -> don't worry about int vs float at the moment 
-	if (t -> n -> exprType == VAL && t -> n -> n-> exprType == VAL) {
-
-		expr * result = malloc(sizeof(expr));
-		result ->exprType = VAL;
-		
-		int count = 0;
-		expr * it = t-> n;
-		
-		count += atoi(it -> vData);
+	expr * result = malloc(sizeof(expr));
+	result ->exprType = VAL;
+	int count = 0;
+	expr * it = t->n;
+	count += atoi(it->vData);
+	it = it -> n;
+	while (it != NULL) {
+		count -= atoi(it->vData);
 		it = it -> n;
-
-		do {
-			count -= atoi(it->vData);
-			it = it -> n;
-		} while (it -> exprType == VAL);
-			
-		result-> vData = malloc(sizeof(char)*22);
-		sprintf(result -> vData,"%d",count);
-	
-		return result;
-
-	} else {
-		printf("Error, invalid addition args.\n");
-		exit(1);
 	}
+	result ->vData = malloc(sizeof(char)*20);
+	sprintf(result->vData, "%d", count);	
+	return result;
 }
 
-void add_builtin_function (envNode * origionalNode, char s [], expr * (* output_fun) (expr * t)) {
-	envNode * n  = origionalNode;
-	
-	do {
-		n = n->n;
-	} while (n != NULL);
+expr * builtin_mult(expr * t) {
+	expr * result = malloc(sizeof(expr));
+	result ->exprType = VAL;
+	int prod;
+	expr * it = t->n;
+	prod = atoi(it->vData);
+	it = it -> n;
+	while (it != NULL) {
+		prod *= atoi(it->vData);
+		it = it -> n;
+	}
+	result ->vData = malloc(sizeof(char)*20);
+	sprintf(result->vData, "%d", prod);	
+	return result;
+}
 
+expr * builtin_div(expr * t) {
+	expr * result = malloc(sizeof(expr));
+	result ->exprType = VAL;
+	int prod;
+	expr * it = t->n;
+	prod = atoi(it->vData);
+	it = it -> n;
+	while (it != NULL) {
+		if (atoi(it -> vData) == 0) {
+			result -> exprType = ERROR;
+			return result;
+		}
+		prod /= atoi(it->vData);
+		it = it -> n;
+	}
+
+	result ->vData = malloc(sizeof(char)*20);
+	sprintf(result->vData, "%d", prod);	
+	return result;
+}
+
+expr * builtin_mod(expr * t) {
+	expr * result = malloc(sizeof(expr));
+	result ->exprType = VAL;
+	int prod;
+	expr * it = t->n;
+	prod = atoi(it->vData);
+	it = it -> n;
+	while (it != NULL) {
+		prod %= atoi(it->vData);
+		it = it -> n;
+	}
+	result ->vData = malloc(sizeof(char)*20);
+	sprintf(result->vData, "%d", prod);	
+	return result;
+}
+
+//which basic list/string functions do I need to get? bit of an L that these are complicated
+//get index 
+//head
+//tail 
+//set index
+//push 
+//length
+//concatenate
+//none of these are really hard!
+
+//once these are completed, can look at two more functions: 
+//var (name) (value/list/string) --should be ok  but kinda interesting 
+//fun ({args}) (expr) --suspect this one of being hard 
+//eval (list) --should be ok but kinda interesting 
+
+void add_builtin_function (envNode * origionalNode, char s [], expr * (* output_fun) (expr * t)) {
+	envNode * it;
+	for (it = origionalNode; it -> n != NULL; it = it -> n) {};
+	
+	envNode * n;
 	n = malloc(sizeof(envNode));
 	n -> symbol = malloc(sizeof(char)*(strlen(s)+1));
 	strcpy(n->symbol, s);
 	n -> output_fun = output_fun; 
+	n -> n = NULL;
+
+	it -> n = n;
 }
 
-envNode * makeEnvionment () {
+envNode * makeEnvironment () {
 	envNode * firstNode = malloc(sizeof(envNode));
 	firstNode->symbol = malloc(sizeof(char)*2);
 	strcpy(firstNode->symbol, "+");
-	firstNode->output_fun = &builtin_add;
+	firstNode->output_fun = &builtin_add; //this seems right to me 
 	
 	//once the first node is created, the others can be added easily 
 	add_builtin_function(firstNode,"-", &builtin_sub);
+	add_builtin_function(firstNode,"*", &builtin_mult);
+	add_builtin_function(firstNode,"/", &builtin_div);
+	add_builtin_function(firstNode,"%", &builtin_mod);
 
 	return firstNode;
 }
@@ -696,18 +746,86 @@ void addNode (envNode * e, char * s, expr * args, expr * out) {
 	n ->output = out;
 }
 
+void printEnvironment(envNode * e) {
+	envNode * it = e;
+	while (it != NULL) {
+		printf("Env:%s.\n",it->symbol);
+		it = it -> n;
+	}
+}
+
 //At the moment the goal should be to get the envionrment and basic functions there in to works properly.
 //Step after that is complex functions like variable assignments, etc.
+//THIS IS THE LAST THING I CODE TODAY!
+void evaluateTreeWithEnvironment(envNode * e, expr * t) {
+	
+	//for now we are evaluating only expressions, extension to variables lists, etc. should be trivial
+	if (t ->exprType == EXPR) {
+	printf("Evaluating expression\n");
+		
+		//evaluate all the children 
+		if (t -> c) {
+			expr * child = t -> c;
+			do {
+				evaluateTreeWithEnvironment(e,child);
+				child = child -> n;	
+			} while (child != NULL);
+		}
+
+
+		int fIndex = envNodeExists(e, t -> c ->vData);
+
+
+		if (fIndex >= 0) {
+			
+			envNode * envFunction = getNode(e,fIndex);
+			expr * result;
+
+			if (*(envFunction -> output_fun)) {
+				result = envFunction -> output_fun(t->c);
+
+			} else {
+				//custom function
+				//result = ...
+				printf("Custom functions not yet surported\n");	
+				exit(1);
+			}
+
+			//ASSUMPTION: THE RESULT DOES NOT HAVE A -> n. Hence -> n stays from origional. THIS ASSUMPTION IS GENUINELY IMPORTANT
+
+			deleteChildren(t -> c);
+			t -> c = NULL;
+			if (t->vData) {free(t->vData);}
+			if (t->lData) {deleteList(t->lData);}
+			if (t->sData) {deleteList(t->sData);}
+
+			if (result->exprType) { t -> exprType = result -> exprType;}
+			if (result->sData) {t->sData = result->sData;}
+			if (result->lData) {t->lData = result -> lData;}
+			if (result->vData) {t->vData = result -> vData;}
+			if (result->c) {t->c = result -> c;}
+
+			free(result); //fairly confident this line is fine and won't kill anything since everything in result is malloced but we will see 
+
+		} else {
+			printf("Function not in environment\n");
+			exit(1);
+		}
+
+	} else {
+		//non expressions go here
+	}
+
+}
 
 int main() {
-	char * doing = "(+ (/ 4 2) (+ 1 2))"; 
+	envNode * environment = makeEnvironment();
+	char * doing = "(% 7 2)"; 
 	//slight tree screws up if () before val 
 	//completely breaks if no letter after a ))
 	list * l = aToL(doing);
 	merge(l);
-	
 	expr * t = listToTree(l);
-	evaluateTree(t);
-	printf("\n");
+	evaluateTreeWithEnvironment(environment,t);
 	printTree(t);
 }
