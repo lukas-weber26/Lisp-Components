@@ -568,6 +568,85 @@ expr * builtin_add(expr * t) {
 	return result;
 }
 
+//greater than 
+//less than 
+//equal 
+//>= 
+
+expr * builtin_gt(expr * t) {
+	expr * result = malloc(sizeof(expr));
+	result ->exprType = ERROR;
+	if (t -> n -> exprType == VAL && t->n->n->exprType == VAL) {
+		result -> vData = malloc(sizeof(char)*2);
+		result -> exprType = VAL;
+		if (atoi(t -> n -> vData) > atoi(t->n->n->vData)) {
+			sprintf(result->vData, "1");
+		} else {
+			sprintf(result->vData, "0");
+		}
+	}
+	return result;
+}
+
+expr * builtin_lt(expr * t) {
+	expr * result = malloc(sizeof(expr));
+	result ->exprType = ERROR;
+	if (t -> n -> exprType == VAL && t->n->n->exprType == VAL) {
+		result -> vData = malloc(sizeof(char)*2);
+		result -> exprType = VAL;
+		if (atoi(t -> n -> vData) < atoi(t->n->n->vData)) {
+			sprintf(result->vData, "1");
+		} else {
+			sprintf(result->vData, "0");
+		}
+	}
+	return result;
+}
+
+expr * builtin_gte(expr * t) {
+	expr * result = malloc(sizeof(expr));
+	result ->exprType = ERROR;
+	if (t -> n -> exprType == VAL && t->n->n->exprType == VAL) {
+		result -> vData = malloc(sizeof(char)*2);
+		result -> exprType = VAL;
+		if (atoi(t -> n -> vData) >= atoi(t->n->n->vData)) {
+			sprintf(result->vData, "1");
+		} else {
+			sprintf(result->vData, "0");
+		}
+	}
+	return result;
+}
+
+expr * builtin_lte(expr * t) {
+	expr * result = malloc(sizeof(expr));
+	result ->exprType = ERROR;
+	if (t -> n -> exprType == VAL && t->n->n->exprType == VAL) {
+		result -> vData = malloc(sizeof(char)*2);
+		result -> exprType = VAL;
+		if (atoi(t -> n -> vData) <= atoi(t->n->n->vData)) {
+			sprintf(result->vData, "1");
+		} else {
+			sprintf(result->vData, "0");
+		}
+	}
+	return result;
+}
+
+expr * builtin_equals(expr * t) {
+	expr * result = malloc(sizeof(expr));
+	result ->exprType = ERROR;
+	if (t -> n -> exprType == VAL && t->n->n->exprType == VAL) {
+		result -> vData = malloc(sizeof(char)*2);
+		result -> exprType = VAL;
+		if (strcmp((t -> n -> vData),(t->n->n->vData)) == 0) {
+			sprintf(result->vData, "1");
+		} else {
+			sprintf(result->vData, "0");
+		}
+	}
+	return result;
+}
 
 expr * builtin_sub(expr * t) {
 	expr * result = malloc(sizeof(expr));
@@ -934,16 +1013,54 @@ expr * builtin_concat (expr * t) {
 
 }
 
-//once these are completed, can look at two more functions: 
-//greater than 
-//less than 
-//equal 
-//>= 
-//oooooooooooooof
-//if (cond == 1?) (then) (else)
-//var (name) (value/list/string) --should be ok  but kinda interesting 
-//fun ({args}) (expr) --suspect this one of being hard 
-//eval (list) --should be ok but kinda interesting 
+
+//These are the things that I still need:
+
+//Easy: Variables, functions.
+//VARIABLES -> I think these are fine as long as the scope is global whenever a variable is defined.
+//FUNCTIONS -> I don't  thik that a define could actually be an internal statement in lisp
+
+//hard 
+//EVAL (IE LIST TO TREE) -> would affect execution 
+
+//if ended up being easy because it does not actually defer execution. If you want defered execution, have to get the if to give you a list and then eval it ie eval (if (condition) {case 1} {case 2})
+
+expr * builtin_if (expr * t) {
+	expr * result = malloc(sizeof(expr));
+	result -> exprType = ERROR;
+
+	//this could probably use some non segfault error handling lol
+
+	expr * temp; 
+	if (strcmp(t -> n ->vData, "1") == 0) {
+		temp = t->n->n;
+	} else {
+		temp = t->n->n->n;
+	}
+
+	switch (temp ->exprType) {
+		case VAL:
+			result ->exprType = VAL;
+			result -> vData = malloc(sizeof(char) * (strlen(temp -> vData) + 1));
+			strcpy(result -> vData, temp -> vData);
+			break;
+		case LIST:
+			result -> exprType = LIST;
+			result -> lData = listCopyer(temp->lData);
+			break;
+		case STRING:
+			result -> exprType = STRING;
+			result -> sData = listCopyer(temp->sData);
+			break;
+		default:
+			printf("If statement failed\n");
+			exit(1);
+	}
+
+	return result;
+}
+
+expr * builtin_const(expr * t);
 
 void add_builtin_function (envNode * origionalNode, char s [], expr * (* output_fun) (expr * t)) {
 	envNode * it;
@@ -958,6 +1075,7 @@ void add_builtin_function (envNode * origionalNode, char s [], expr * (* output_
 
 	it -> n = n;
 }
+
 
 envNode * makeEnvironment () {
 	envNode * firstNode = malloc(sizeof(envNode));
@@ -977,6 +1095,13 @@ envNode * makeEnvironment () {
 	add_builtin_function(firstNode,"len", &builtin_len);
 	add_builtin_function(firstNode,"push", &builtin_push);
 	add_builtin_function(firstNode,"cat", &builtin_concat);
+	add_builtin_function(firstNode,">", &builtin_gt);
+	add_builtin_function(firstNode,"<", &builtin_lt);
+	add_builtin_function(firstNode,">=", &builtin_gte);
+	add_builtin_function(firstNode,"<=", &builtin_lte);
+	add_builtin_function(firstNode,"=", &builtin_equals);
+	add_builtin_function(firstNode,"if", &builtin_if);
+	add_builtin_function(firstNode,"const", &builtin_const);
 	return firstNode;
 }
 
@@ -1052,6 +1177,64 @@ void printEnvironment(envNode * e) {
 	}
 }
 
+
+//well this is just bad architecture lmao ----- gotta remember to actually set this thing 
+envNode * getCurrentEnv(envNode * e){
+	static envNode * current;
+	if (e != NULL) {
+		current = e;	
+	} 
+
+	return current; 
+}
+
+expr * builtin_const(expr * t) {
+	expr * result = malloc(sizeof(expr));
+	result ->exprType = VAL;
+
+	result ->vData = malloc(sizeof(char)*2);
+	strcpy(result -> vData, "1");
+
+	envNode * n = getCurrentEnv(NULL);
+
+	int count;
+	//potentially delete the node 
+	if ((count =envNodeExists(n, result ->vData)) != -1) {
+		deleteNode(n, getNode(n,count));		
+	} 
+
+	expr * in = malloc(sizeof(expr));
+	in ->exprType = VAL;
+	in -> vData = malloc(sizeof(char)* (strlen(t->n->vData) + 1));
+	strcpy(in->vData, t->n->vData);
+
+	expr * out = malloc(sizeof(expr));
+	expr * temp = t -> n -> n;
+
+	switch (temp ->exprType) {
+		case VAL:
+			out ->exprType = VAL;
+			out -> vData = malloc(sizeof(char) * (strlen(temp -> vData) + 1));
+			strcpy(out-> vData, temp -> vData);
+			break;
+		case LIST:
+			out -> exprType = LIST;
+			out-> lData = listCopyer(temp->lData);
+			break;
+		case STRING:
+			out-> exprType = STRING;
+			out -> sData = listCopyer(temp->sData);
+			break;
+		default:
+			printf("Variable creation failed.\n");
+			exit(1);
+	}
+
+	addNode(n, t->n->vData, in, out);
+
+	return result;	
+}
+
 void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 	
 	//for now we are evaluating only expressions, extension to variables lists, etc. should be trivial
@@ -1064,6 +1247,7 @@ void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 			do {
 				evaluateTreeWithEnvironment(e,child);
 				child = child -> n;	
+
 			} while (child != NULL);
 		}
 
@@ -1115,8 +1299,9 @@ void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 
 int main() {
 	envNode * environment = makeEnvironment();
+	getCurrentEnv(environment);
 	//realistically need to clean up the list type to at least prevent { a from breaking things 
-	char * doing = "(len (tail (cat {a b c} {1 2 3})))"; 
+	char * doing = "(if 1 yay nay)"; 
 	//slight tree screws up if () before val 
 	//completely breaks if no letter after a ))
 	list * l = aToL(doing);
