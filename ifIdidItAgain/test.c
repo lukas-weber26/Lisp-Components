@@ -980,6 +980,33 @@ expr * builtin_if (expr * t) {
 	return result;
 }
 
+envNode * getCurrentEnv(envNode * e);
+void evaluateTreeWithEnvironment(envNode * e, expr * t);
+
+expr * builtin_eval(expr* t) {
+	if (t -> n -> exprType == LIST) {
+
+		list * listExpr = listCopyer(t -> n ->lData);
+		listExpr ->cargo[0] = '(';
+		list * last;
+		for (last = listExpr; last ->n != NULL; last = last -> n) {}
+		last -> cargo[0] = ')';
+		
+		merge(listExpr);
+		expr * listExprTree = listToTree(listExpr);	
+		evaluateTreeWithEnvironment(getCurrentEnv(NULL),listExprTree);
+		return listExprTree;
+
+
+	} else {
+		printf("Ran Eval on non list data type.\n");
+		exit(1);
+	}
+
+}
+
+
+expr * builtin_func(expr * t);
 expr * builtin_const(expr * t);
 
 void add_builtin_function (envNode * origionalNode, char s [], expr * (* output_fun) (expr * t)) {
@@ -1022,6 +1049,8 @@ envNode * makeEnvironment () {
 	add_builtin_function(firstNode,"=", &builtin_equals);
 	add_builtin_function(firstNode,"if", &builtin_if);
 	add_builtin_function(firstNode,"const", &builtin_const);
+	add_builtin_function(firstNode,"eval", &builtin_eval);
+	add_builtin_function(firstNode,"func", &builtin_func);
 	return firstNode;
 }
 
@@ -1074,6 +1103,7 @@ void addNode (envNode * e, char * s, expr * args, expr * out, int isVar) {
 	//check if node with symbol exists 
 	int count;
 	if ((count = envNodeExists(e, s)) != -1) {
+		printf("Node exists.\n");
 		deleteNode(e, getNode(e,count));
 	}
 
@@ -1087,7 +1117,10 @@ void addNode (envNode * e, char * s, expr * args, expr * out, int isVar) {
 	strcpy(n->symbol, s);
 	n -> args = args;
 	n ->output = out;
+	n ->output_fun =NULL; //hehehehehe... aaaannnnd did it again.
 	n ->isVar = isVar;
+	n -> n = NULL; //heheheheh this again. Learning my lesson..
+
 }
 
 void printEnvironment(envNode * e) {
@@ -1120,10 +1153,7 @@ expr * builtin_const(expr * t) {
 	envNode * n = getCurrentEnv(NULL);
 
 	int count;
-	//potentially delete the node ------- problem. Need to make sure this shit will not when const a 3 has a defined . 
-	//I could make the constant substitution only run when the parent function is not const
-	//I don't think a solution exists for this function.
-	if ((count =envNodeExists(n, result ->vData)) != -1) {
+	if ((count =envNodeExists(n, t->n->vData)) != -1) { //this used to be result -> vData
 		printf("Attempt to redefine a constant.\n");
 		exit(1);
 	} 
@@ -1160,6 +1190,121 @@ expr * builtin_const(expr * t) {
 	return result;	
 }
 
+expr * builtin_func(expr * t) {
+	expr * result = malloc(sizeof(expr));
+	result -> exprType = VAL;
+	result -> vData = malloc(sizeof(char)*2);
+	strcpy(result -> vData, "1");
+
+	if (t->n->exprType == VAL && t->n->n->exprType == LIST && t -> n -> n -> n -> exprType == LIST) {
+
+		envNode * n = getCurrentEnv(NULL);
+	
+		expr* inputs = malloc(sizeof(expr));
+		expr* outputs = malloc(sizeof(expr));
+
+
+		if ((envNodeExists(n, t->n->vData)) != -1) { 
+			printf("Attempt to redefine a constant.\n");
+			exit(1);
+		} 
+
+		inputs -> exprType = LIST;
+		outputs -> exprType= LIST;
+
+		inputs -> lData = listCopyer(t->n->n->lData);
+		outputs -> lData = listCopyer(t->n->n->n->lData);
+		
+		char * temp = malloc(sizeof(char)*(1+strlen(t->n->vData)));
+		strcpy(temp, t->n->vData);
+		addNode(n, temp, inputs, outputs, 0);
+
+	expr * args; 
+	expr * output;	
+
+	}
+
+	return  result;
+}
+
+
+expr * runCustomFunction(envNode* f, expr * t) {
+	
+	//Get the argument and output lists
+	list * input = dropFirst((listCopyer(f->args->lData)));	
+	dropLast(input); 
+
+	list * output = listCopyer(f->output->lData);	
+	list * it = input;
+	int length = listLength(input);
+	int outLength = listLength(output);
+
+	expr * nodeArg = t->n;
+
+	for (int i = 0; i < length; i++) {
+		if (strcmp(" ",it->cargo) == 0) {
+			it = it -> n;
+			continue;
+		}
+
+		//step 1: Find the corresponding argument
+		char * arg;
+		switch (nodeArg ->exprType) {
+			case VAL:
+				arg = malloc(sizeof(char)*(1+strlen(nodeArg->vData)));
+				strcpy(arg, nodeArg->vData);
+				break;
+			case LIST:
+				arg = listToChar(nodeArg->lData);	
+				break;
+			case STRING:
+				arg = listToChar(nodeArg->sData);
+				break;
+			default:
+				printf("Invalid argument\n");
+				exit(0);
+		}
+
+		//replace the argument in the output list with the input arg 
+		list* outIt = output;
+		for (int j = 0; j < outLength; j ++) {
+			
+			if (strcmp(outIt -> cargo, it -> cargo) == 0) {
+				free(outIt->cargo);
+				outIt -> cargo = malloc(sizeof(char) * (strlen(arg) + 1));
+				strcpy(outIt->cargo, arg);
+			}
+
+			outIt = outIt -> n;	
+		}
+
+
+		nodeArg = nodeArg -> n;
+		
+		it = it -> n;
+	}
+	
+
+	//printListAsItems(output); 
+	
+	output->cargo[0] = '(';
+	list * last;
+	for (last = output; last ->n != NULL; last = last -> n) {}
+	last -> cargo[0] = ')';
+	last -> n = NULL;
+	
+	merge(output);
+	expr * listExprTree = listToTree(output);	
+	evaluateTreeWithEnvironment(getCurrentEnv(NULL),listExprTree);
+	listExprTree -> c = NULL;
+
+	deleteList(input);
+	
+
+	return listExprTree;
+
+}
+
 void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 	
 	//for now we are evaluating only expressions, extension to variables lists, etc. should be trivial
@@ -1174,24 +1319,25 @@ void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 				child = child -> n;	
 
 			} while (child != NULL);
+
 		}
 
 
 		int fIndex = envNodeExists(e, t -> c ->vData);
-
+		//printf("Checked for function existence, found %d.", fIndex);
 
 		if (fIndex >= 0) {
-			
+				
 			envNode * envFunction = getNode(e,fIndex);
 			expr * result;
 
 			if (*(envFunction -> output_fun)) {
 				result = envFunction -> output_fun(t->c);
 
+			} else if (envFunction ->args) {
+				result = runCustomFunction(envFunction,t->c);	
 			} else {
-				//custom function
-				//result = ...
-				printf("Custom functions not yet surported\n");	
+				printf("Something weird has happened.\n");
 				exit(1);
 			}
 
@@ -1215,7 +1361,7 @@ void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 			exit(1);
 		}
 
-	} else if (t-> exprType == VAL){
+	} else if (t-> exprType == VAL ){
 		//Search for the symbol in the environment. If it's there, replace accordingly
 		int index;
 		if ((index = envNodeExists(e, t->vData)) != -1) {
@@ -1233,7 +1379,6 @@ void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 				//if (val->exprType== STRING) {t->sData = val ->sData;}
 				//if (val->exprType== LIST) {t->lData   = val  -> lData;}
 				//if (val->exprType == VAL) {t->vData   = val  -> vData;}
-
 
 				switch (val->exprType) {
 					case VAL:
@@ -1264,26 +1409,27 @@ void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 void runCode (envNode * e, char * code) {
 	list * l = aToL(code);
 	merge(l);
+	if (listLength(l) > 2) {
 	expr * t = listToTree(l);
-	evaluateTreeWithEnvironment(e,t);
-	printTree(t);
-	deleteTree(t);
+		evaluateTreeWithEnvironment(e,t);
+		printTree(t);
+		deleteTree(t);
+	} else {
+		deleteList(l);
+	}
 }
 
-//Easy: Variables, functions.
+//State of variables: They work but if you try to overwrite a variable you are bing a clown and will get yourself a bug 
+//This is a lanugage feature.
 //FUNCTIONS -> I don't  thik that a define could actually be an internal statement in lisp
 //EVAL (IE LIST TO TREE) -> would affect execution 
 
 int main() {
 	envNode * environment = makeEnvironment();
 	getCurrentEnv(environment);
-	//realistically need to clean up the list type to at least prevent { a from breaking things 
 	
-	runCode(environment, "(const a 3)");
-	runCode(environment, "(+ 1 a)");
-	runCode(environment, "(+ a a)");
-	runCode(environment, "(+ a a)");
-	runCode(environment, "(const a 10)");
-	runCode(environment, "(+ a 1)");
+	runCode(environment, "(func adder {a b} {+ a b})");
+	runCode(environment, "(adder 1 2)");
+
 
 }
