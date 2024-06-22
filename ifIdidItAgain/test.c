@@ -14,6 +14,7 @@ list * getNodeFromChar(char c) {
 	f -> cargo = malloc(sizeof(char) * 2);
 	f -> cargo[0] = c;
 	f -> cargo[1] = '\0';
+	f ->n = NULL;
 
 	return f;
 }
@@ -43,7 +44,7 @@ void printListAsItems(list * l) {
 }
 
 void deleteList (list * l) {
-	if (l -> n != NULL) {
+	if (l -> n) {
 		deleteList(l->n);
 	}
 	free(l -> cargo);
@@ -90,6 +91,7 @@ list * copyList (list * l ) {
 			strcpy(newL -> cargo, it->cargo);
 			it = it -> n;
 		}
+		it -> n = NULL;
 	}
 
 	return returnL;
@@ -276,6 +278,7 @@ typedef struct expr {
 } expr;
 
 void printTree(expr *tree) {
+	//printf("Expression Type:%d.\n", tree->exprType);
 	switch(tree -> exprType) {
 		case (EXPR):
 			printf("New expr\n");
@@ -300,8 +303,8 @@ void printTree(expr *tree) {
 			if (tree -> n) {printTree(tree -> n);}	
 			break;
 		default:
-			exit(1);
 			printf("Broken tree node");
+			exit(1);
 	}
 }
 
@@ -378,7 +381,7 @@ expr * listToTree (list * l) {
 					subList = copyListN(it, c);	
 					
 
-					printList(subList);
+					//printList(subList);
 					//Don't think this is the probelm because printing the list allready kills it
 					subTree = listToTree(subList); 
 
@@ -431,9 +434,11 @@ expr * listToTree (list * l) {
 					strcpy(temp->vData, it->cargo);
 					if (count == 0) { iterableTree -> c = temp; } else {  iterableTree -> n = temp; }
 					iterableTree = temp;
+					temp -> n = NULL;
 				}
 				count ++;
 			}
+
 		}
 
 		deleteList(l);
@@ -463,84 +468,6 @@ void deleteChildren(expr * t) {
 		free(t);
 }
 
-void evaluateTree(expr * t) {
-	
-	//for now we are evaluating only expressions
-	if (t ->exprType == EXPR) {
-	//printf("Evaluating expression\n");
-		//evaluate all the children 
-		if (t -> c) {
-			expr * child = t -> c;
-			do {
-				evaluateTree(child);
-				child = child -> n;	
-			} while (child != NULL);
-		}
-		
-		//once done evaluating, try to combine appropriately.
-		//This will also end up requring an environment to look up functions 
-		//I will need some sort of a gracefull way to manage different function arguments, different number of args, etc.
-		//Overall, this is kinda hard!
-		int result;	
-		char * resultString = malloc(sizeof(char)*22);
-
-		//really need something more gracefull that can handle more complex functions that are not a single char in length lol
-		switch (t -> c -> vData[0]) {	
-			case '+':
-				result = atoi(t -> c -> n -> vData) + atoi(t -> c -> n -> n -> vData);	
-				if (sprintf(resultString,"%d", result) > 0) {
-					t ->vData= resultString;
-				} else {
-					printf("Bad addition");
-					exit(1);
-				}
-				break;
-			case '-':
-				result = atoi(t -> c -> n -> vData) - atoi(t -> c -> n -> n -> vData);	
-				if (sprintf(resultString,"%d", result) > 0) {
-					t ->vData= resultString;
-				} else {
-					printf("Bad subtraction");
-					exit(1);
-				}
-				break;
-			break;
-			case '*':
-				result = atoi(t -> c -> n -> vData) * atoi(t -> c -> n -> n -> vData);	
-				if (sprintf(resultString,"%d", result) > 0) {
-					t ->vData= resultString;
-				} else {
-					printf("Bad multiplication");
-					exit(1);
-				}
-				break;
-			case '/':
-				result = atoi(t -> c -> n -> vData) / atoi(t -> c -> n -> n -> vData);	
-				if (sprintf(resultString,"%d", result) > 0) {
-					t ->vData= resultString;
-				} else {
-					printf("Bad division");
-					exit(1);
-				}
-				break;
-			break;
-		}
-				
-
-		t -> exprType = VAL;
-
-
-		deleteChildren(t -> c);
-		t -> c = NULL;
-		
-			
-	} else {
-		//other types will need to be evaluated
-		//Basically that just means that the symbol could be a variable that needs to be replaced
-	}
-
-}
-
 typedef struct envNode {
 	struct envNode * n;
 	char * symbol;
@@ -548,6 +475,8 @@ typedef struct envNode {
 	//user functtion: via expected tree and resultant tree
 	expr * args; 
 	expr * output;	
+
+	int isVar;
 
 	//builtin functions: function via function pointers 
 	expr* (* output_fun) (expr*);
@@ -558,13 +487,14 @@ expr * builtin_add(expr * t) {
 	result ->exprType = VAL;
 	int count = 0;
 	expr * it = t->n;
-	while (it != NULL) {
+	while (it) {
+		//printf("Adding:%s.\n",it->vData);
 		count += atoi(it->vData);
 		it = it -> n;
 	}
 	result ->vData = malloc(sizeof(char)*20);
 	sprintf(result->vData, "%d", count);	
-	printf("Returning:%s.\n", result->vData);
+	//printf("Returning:%s.\n", result->vData);
 	return result;
 }
 
@@ -720,7 +650,7 @@ expr * builtin_mod(expr * t) {
 //which basic list/string functions do I need to get? bit of an L that these are complicated
 //get index 
 expr * builtin_index(expr * t) {
-	printf("Running index \n");
+	//printf("Running index \n");
 	expr * result = malloc(sizeof(expr));
 	
 	if (t-> n -> exprType == VAL && ((t->n -> n -> exprType == LIST) || (t->n -> n -> exprType == STRING))) {
@@ -740,9 +670,9 @@ expr * builtin_index(expr * t) {
 
 		if (r) {
 			printList(t->n->n->lData);
-			printf("R being assigned and everything...\n");
+			//printf("R being assigned and everything...\n");
 			result ->vData = malloc((strlen(r)+1)* sizeof(char));
-			printf("%s", r);
+			//printf("%s", r);
 			strcpy(result->vData, r);
 		} else {
 			printf("Also a bad result\n");
@@ -795,6 +725,8 @@ list * listCopyer(list * l) {
 		newIt -> n = listNodeCopy(ogIt);	
 		newIt = newIt -> n;
 	}
+
+	newIt -> n = NULL;
 
 	return new;
 		
@@ -975,7 +907,7 @@ expr * builtin_concat (expr * t) {
 	list * current; 
 	list * temp;
 	
-	printf("Running\n");
+	//printf("Running\n");
 
 	if (t -> n -> exprType == LIST) {
 		current =listCopyer(t -> n -> lData);
@@ -1012,18 +944,6 @@ expr * builtin_concat (expr * t) {
 	return result;
 
 }
-
-
-//These are the things that I still need:
-
-//Easy: Variables, functions.
-//VARIABLES -> I think these are fine as long as the scope is global whenever a variable is defined.
-//FUNCTIONS -> I don't  thik that a define could actually be an internal statement in lisp
-
-//hard 
-//EVAL (IE LIST TO TREE) -> would affect execution 
-
-//if ended up being easy because it does not actually defer execution. If you want defered execution, have to get the if to give you a list and then eval it ie eval (if (condition) {case 1} {case 2})
 
 expr * builtin_if (expr * t) {
 	expr * result = malloc(sizeof(expr));
@@ -1150,7 +1070,7 @@ void deleteNode (envNode * n, envNode * target) {
 }
 
 //this is basically a dummy. not terrible but needs some logic to figure args and out out. I guess that will come from the builtin function that handles assignments. Who knows.
-void addNode (envNode * e, char * s, expr * args, expr * out) {
+void addNode (envNode * e, char * s, expr * args, expr * out, int isVar) {
 	//check if node with symbol exists 
 	int count;
 	if ((count = envNodeExists(e, s)) != -1) {
@@ -1167,6 +1087,7 @@ void addNode (envNode * e, char * s, expr * args, expr * out) {
 	strcpy(n->symbol, s);
 	n -> args = args;
 	n ->output = out;
+	n ->isVar = isVar;
 }
 
 void printEnvironment(envNode * e) {
@@ -1189,6 +1110,7 @@ envNode * getCurrentEnv(envNode * e){
 }
 
 expr * builtin_const(expr * t) {
+	printf("Const");
 	expr * result = malloc(sizeof(expr));
 	result ->exprType = VAL;
 
@@ -1198,9 +1120,12 @@ expr * builtin_const(expr * t) {
 	envNode * n = getCurrentEnv(NULL);
 
 	int count;
-	//potentially delete the node 
+	//potentially delete the node ------- problem. Need to make sure this shit will not when const a 3 has a defined . 
+	//I could make the constant substitution only run when the parent function is not const
+	//I don't think a solution exists for this function.
 	if ((count =envNodeExists(n, result ->vData)) != -1) {
-		deleteNode(n, getNode(n,count));		
+		printf("Attempt to redefine a constant.\n");
+		exit(1);
 	} 
 
 	expr * in = malloc(sizeof(expr));
@@ -1229,8 +1154,8 @@ expr * builtin_const(expr * t) {
 			printf("Variable creation failed.\n");
 			exit(1);
 	}
-
-	addNode(n, t->n->vData, in, out);
+		
+	addNode(n, t->n->vData, in, out, 1);
 
 	return result;	
 }
@@ -1239,7 +1164,7 @@ void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 	
 	//for now we are evaluating only expressions, extension to variables lists, etc. should be trivial
 	if (t ->exprType == EXPR) {
-	printf("Evaluating expression\n");
+	//printf("Evaluating expression\n");
 		
 		//evaluate all the children 
 		if (t -> c) {
@@ -1271,17 +1196,16 @@ void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 			}
 
 			//ASSUMPTION: THE RESULT DOES NOT HAVE A -> n. Hence -> n stays from origional. THIS ASSUMPTION IS GENUINELY IMPORTANT
-
-			deleteChildren(t -> c);
+			deleteTree(t -> c);
 			t -> c = NULL;
-			if (t->vData) {free(t->vData);}
-			if (t->lData) {deleteList(t->lData);}
-			if (t->sData) {deleteList(t->sData);}
+			if (t->exprType == VAL) {free(t->vData);}
+			if (t->exprType == LIST) {printf("Hi\n"); deleteList(t->lData);printf("Ho\n");} 
+			if (t->exprType == STRING) {printf("Hi\n"); deleteList(t->sData);printf("Ho\n");}
 
-			if (result->exprType) { t -> exprType = result -> exprType;}
-			if (result->sData) {t->sData = result->sData;}
-			if (result->lData) {t->lData = result -> lData;}
-			if (result->vData) {t->vData = result -> vData;}
+			t -> exprType = result -> exprType;
+			if (result->exprType== STRING) {t->sData = result->sData;}
+			if (result->exprType== LIST) {t->lData = result -> lData;}
+			if (result->exprType == VAL) {t->vData = result -> vData;}
 			if (result->c) {t->c = result -> c;}
 
 			free(result); //fairly confident this line is fine and won't kill anything since everything in result is malloced but we will see 
@@ -1291,22 +1215,75 @@ void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 			exit(1);
 		}
 
+	} else if (t-> exprType == VAL){
+		//Search for the symbol in the environment. If it's there, replace accordingly
+		int index;
+		if ((index = envNodeExists(e, t->vData)) != -1) {
+			envNode * temp = getNode(e, index);
+			if (temp ->isVar == 1) {
+				//printf("Is var:%s\n",t->vData);
+				expr * val = temp->output;
+			
+				//Freeing T is pretty straight forward.
+				if (t->exprType == VAL) {free(t->vData);}
+				if (t->exprType == LIST) {printf("Hi\n"); deleteList(t->lData);printf("Ho\n");} 
+				if (t->exprType == STRING) {printf("Hi\n"); deleteList(t->sData);printf("Ho\n");}
+
+				t -> exprType = val -> exprType;
+				//if (val->exprType== STRING) {t->sData = val ->sData;}
+				//if (val->exprType== LIST) {t->lData   = val  -> lData;}
+				//if (val->exprType == VAL) {t->vData   = val  -> vData;}
+
+
+				switch (val->exprType) {
+					case VAL:
+						t->exprType = VAL;
+						t-> vData = malloc(sizeof(char) * (strlen(val-> vData) + 1));
+						strcpy(t-> vData, val-> vData);
+						break;
+					case LIST:
+						t-> exprType = LIST;
+						t-> lData = listCopyer(val->lData);
+						break;
+					case STRING:
+						t-> exprType = STRING;
+						t-> sData = listCopyer(val->sData);
+						break;
+					default:
+						printf("If statement failed\n");
+						exit(1);
+				}
+			}
+		}
 	} else {
-		//non expressions go here
+		//irrelevant expression type 	
 	}
 
 }
+
+void runCode (envNode * e, char * code) {
+	list * l = aToL(code);
+	merge(l);
+	expr * t = listToTree(l);
+	evaluateTreeWithEnvironment(e,t);
+	printTree(t);
+	deleteTree(t);
+}
+
+//Easy: Variables, functions.
+//FUNCTIONS -> I don't  thik that a define could actually be an internal statement in lisp
+//EVAL (IE LIST TO TREE) -> would affect execution 
 
 int main() {
 	envNode * environment = makeEnvironment();
 	getCurrentEnv(environment);
 	//realistically need to clean up the list type to at least prevent { a from breaking things 
-	char * doing = "(if 1 yay nay)"; 
-	//slight tree screws up if () before val 
-	//completely breaks if no letter after a ))
-	list * l = aToL(doing);
-	merge(l);
-	expr * t = listToTree(l);
-	evaluateTreeWithEnvironment(environment,t);
-	printTree(t);
+	
+	runCode(environment, "(const a 3)");
+	runCode(environment, "(+ 1 a)");
+	runCode(environment, "(+ a a)");
+	runCode(environment, "(+ a a)");
+	runCode(environment, "(const a 10)");
+	runCode(environment, "(+ a 1)");
+
 }
