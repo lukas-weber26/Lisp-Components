@@ -1296,7 +1296,7 @@ expr * runCustomFunction(envNode* f, expr * t) {
 	merge(output);
 	expr * listExprTree = listToTree(output);	
 	evaluateTreeWithEnvironment(getCurrentEnv(NULL),listExprTree);
-	listExprTree -> c = NULL;
+	//listExprTree -> c = NULL;
 
 	deleteList(input);
 	
@@ -1333,7 +1333,6 @@ void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 
 			if (*(envFunction -> output_fun)) {
 				result = envFunction -> output_fun(t->c);
-
 			} else if (envFunction ->args) {
 				result = runCustomFunction(envFunction,t->c);	
 			} else {
@@ -1341,20 +1340,20 @@ void evaluateTreeWithEnvironment(envNode * e, expr * t) {
 				exit(1);
 			}
 
-			//ASSUMPTION: THE RESULT DOES NOT HAVE A -> n. Hence -> n stays from origional. THIS ASSUMPTION IS GENUINELY IMPORTANT
-			deleteTree(t -> c);
-			t -> c = NULL;
-			if (t->exprType == VAL) {free(t->vData);}
-			if (t->exprType == LIST) {printf("Hi\n"); deleteList(t->lData);printf("Ho\n");} 
-			if (t->exprType == STRING) {printf("Hi\n"); deleteList(t->sData);printf("Ho\n");}
+				deleteTree(t -> c);
+				t -> c = NULL;
+				if (t->exprType == VAL) {free(t->vData);}
+				if (t->exprType == LIST) {printf("Hi\n"); deleteList(t->lData);printf("Ho\n");} 
+				if (t->exprType == STRING) {printf("Hi\n"); deleteList(t->sData);printf("Ho\n");}
 
-			t -> exprType = result -> exprType;
-			if (result->exprType== STRING) {t->sData = result->sData;}
-			if (result->exprType== LIST) {t->lData = result -> lData;}
-			if (result->exprType == VAL) {t->vData = result -> vData;}
-			if (result->c) {t->c = result -> c;}
+				t -> exprType = result -> exprType;
+				if (result->exprType== STRING) {t->sData = result->sData;}
+				if (result->exprType== LIST) {t->lData = result -> lData;}
+				if (result->exprType == VAL) {t->vData = result -> vData;}
+				if (result->c) {t->c = result -> c;}
 
-			free(result); //fairly confident this line is fine and won't kill anything since everything in result is malloced but we will see 
+				free(result); 
+
 
 		} else {
 			printf("Function not in environment\n");
@@ -1428,8 +1427,10 @@ int main() {
 	envNode * environment = makeEnvironment();
 	getCurrentEnv(environment);
 	
-	runCode(environment, "(func adder {a b} {+ a b})");
-	runCode(environment, "(adder 1 2)");
+	//runCode(environment, "(func adder {a b} {+ a b})");
+	//runCode(environment, "(adder 1 2)");
 
+	runCode(environment, "(func giveGreater {a b} {if (> a b) a b})");
+	runCode(environment, "(giveGreater 11 12)");
 
 }
